@@ -1,81 +1,80 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
+from pydantic import BaseModel
+from fetcher import update_database  # Import your Selenium bot function
 import sqlite3
 
 app = FastAPI()
 
-# Enable CORS for all origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Define a Pydantic model for the request payload
+class TransactionRequest(BaseModel):
+    customerCard: str
+    destinationCard: str
+    transactionID: str
 
-# Database connection
-conn = sqlite3.connect("database.sqlite3")
+# SQLite connection setup
+conn = sqlite3.connect('database.sqlite3')
 cursor = conn.cursor()
 
-# FastAPI route to handle requests
-@app.post("/check-transaction")
-async def check_transaction(card_number: str, destination_card: str, transaction_number: str):
-    # Check the transaction in the database
-    cursor.execute("SELECT * FROM transactions WHERE card_number = ? AND destination_card = ? AND transaction_number = ?", (card_number, destination_card, transaction_number))
-    transaction_result = cursor.fetchone()
+# Check if the transactions table exists, and create it if not
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerCard VARCHAR(16),
+        destinationCard VARCHAR(16),
+        transactionID VARCHAR(20),
+        transactionDate VARCHAR(20),
+        transactionTime VARCHAR(20),
+        details TEXT
+    )
+''')
+conn.commit()
 
-    if transaction_result:
-        return {"status": "success", "message": "Transaction found"}
+# FastAPI route to handle incoming requests
+@app.post("/check_transaction")
+async def check_transaction(request: TransactionRequest):
+    # Check if the transaction exists in the database
+    cursor.execute(
+        "SELECT * FROM transactions WHERE customerCard = ? AND destinationCard = ? AND transactionID = ?",
+        (request.customerCard, request.destinationCard, request.transactionID),
+    )
+    result = cursor.fetchone()
 
-    # If transaction not found, run the bot
-    return run_bot()
+    if result:
+        # Transaction found, return success with details
+        transaction_details = {
+            "transactionDate": result[3],
+            "transactionTime": result[4],
+            "details": result[5] if result[5] else "No details available",
+        }
+        return {"status": "success", "details": transaction_details}
 
-def run_bot():
-    # Fetch the active account from the database
-    cursor.execute("SELECT * FROM accounts WHERE status = 'active'")
-    active_account = cursor.fetchone()
+    else:
+        # Transaction not found, run the Selenium bot
+        bot_result = update_database(request.customerCard, request.destinationCard)
 
-    if not active_account:
-        raise HTTPException(status_code=400, detail="No active account found")
+        if bot_result["status"] == "success":
+            # Bot ran successfully, check the database again and return success with log message
+            cursor.execute(
+                "SELECT * FROM transactions WHERE customerCard = ? AND destinationCard = ? AND transactionID = ?",
+                (request.customerCard, request.destinationCard, request.transactionID),
+            )
+            result_after_bot = cursor.fetchone()
 
-    bank = active_account[1]
-    username = active_account[3]
-    password = active_account[4]
-    url = active_account[5]
+            if result_after_bot:
+                transaction_details_after_bot = {
+                    "transactionDate": result_after_bot[3],
+                    "transactionTime": result_after_bot[4],
+                    "details": result_after_bot[5] if result_after_bot[5] else "No details available",
+                }
+                return {"status": "success", "log_message": bot_result["log_message"], "details": transaction_details_after_bot}
+            else:
+                raise HTTPException(status_code=500, detail="Bot ran successfully, but transaction still not found in the database")
 
-    # Run Selenium bot
-    try:
-        if bank == "example_bank":
-            run_example_bank_bot(username, password, url)
-        # Add more banks as needed
         else:
-            raise HTTPException(status_code=400, detail="Invalid bank")
+            # Bot failed to update the database, return failure with log message
+            raise HTTPException(status_code=500, detail=bot_result["log_message"])
 
-        # Update transaction status in the database if successful
-        cursor.execute("INSERT INTO transactions (card_number, destination_card, transaction_number) VALUES (?, ?, ?)", (card_number, destination_card, transaction_number))
-        conn.commit()
-
-        return {"status": "success", "message": "Transaction successful"}
-
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "message": f"Bot error: {str(e)}"})
-
-
-def run_example_bank_bot(username, password, url):
-    # Replace this with your Selenium bot logic for the specific bank
-    driver = webdriver.Chrome()  # You may need to download the appropriate webdriver for your browser
-    driver.get(url)
-
-    # Add your bot logic here using the provided username and password
-    # ...
-
-    driver.quit()
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+# Lifespan event handler to close the SQLite connection when the FastAPI app shuts down
+@app.on_event("shutdown")
+def shutdown_event():
+    conn.close()
