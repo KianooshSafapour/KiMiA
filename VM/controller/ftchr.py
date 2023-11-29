@@ -34,7 +34,7 @@ class BankBot:
             if self.check_for_ctrl_command():
                 self.last_activity_time = time.time()
                 self.download_csv()  # Run download_csv function
-                self.stay_logged_in()  # After download_csv, run stay_logged_in
+                    self.stay_logged_in()  # After download_csv, run stay_logged_in
 
             time.sleep(60)  # Sleep for 1 minute to avoid excessive polling
 

@@ -1,80 +1,91 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
-from fetcher import update_database  # Import your Selenium bot function
-import sqlite3
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from databases import Database
+import asyncio
+from datetime import datetime
+
+DATABASE_URL = "sqlite:///./database.sqlite3"
+
+# SQLAlchemy Model
+Base = declarative_base()
+
+class TransactionModel(Base):
+    __tablename__ = "transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_card = Column(String(16), index=True)
+    destination_card = Column(String(16), index=True)
+    transaction_number = Column(String(20))
+    confirmation_number = Column(String(20))
+    transaction_date = Column(String(20))
+    transaction_time = Column(String(20))
+    details = Column(Text, nullable=True)
+
+# FastAPI Model
+class Transaction(BaseModel):
+    customer_card: str
+    destination_card: str
+    transaction_number: str
+    confirmation_number: str
+    transaction_date: str
+    transaction_time: str
+    details: str = None
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+database = Database(DATABASE_URL)
 
 app = FastAPI()
 
-# Define a Pydantic model for the request payload
-class TransactionRequest(BaseModel):
-    customerCard: str
-    destinationCard: str
-    transactionID: str
+# Create tables if they don't exist
+Base.metadata.create_all(bind=engine)
 
-# SQLite connection setup
-conn = sqlite3.connect('database.sqlite3')
-cursor = conn.cursor()
+async def execute_query(query: str):
+    async with database.transaction():
+        return await database.execute(query)
 
-# Check if the transactions table exists, and create it if not
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customerCard VARCHAR(16),
-        destinationCard VARCHAR(16),
-        transactionID VARCHAR(20),
-        transactionDate VARCHAR(20),
-        transactionTime VARCHAR(20),
-        details TEXT
+async def get_confirmation_code(transaction_id: int):
+    query = f"SELECT confirmation_number FROM transactions WHERE id = {transaction_id}"
+    result = await execute_query(query)
+    return result.fetchone()
+
+async def process_transaction(transaction: Transaction):
+    # Check if the transactions table exists
+    if not engine.dialect.has_table(engine, "transactions"):
+        # If not, create the table
+        Base.metadata.create_all(bind=engine)
+
+    # Create a new transaction record
+    new_transaction = TransactionModel(
+        customer_card=transaction.customer_card,
+        destination_card=transaction.destination_card,
+        transaction_number=transaction.transaction_number,
+        confirmation_number=transaction.confirmation_number,
+        transaction_date=transaction.transaction_date,
+        transaction_time=transaction.transaction_time,
+        details=transaction.details,
     )
-''')
-conn.commit()
 
-# FastAPI route to handle incoming requests
-@app.post("/check_transaction")
-async def check_transaction(request: TransactionRequest):
-    # Check if the transaction exists in the database
-    cursor.execute(
-        "SELECT * FROM transactions WHERE customerCard = ? AND destinationCard = ? AND transactionID = ?",
-        (request.customerCard, request.destinationCard, request.transactionID),
-    )
-    result = cursor.fetchone()
+    # Add the transaction record to the database
+    db = SessionLocal()
+    db.add(new_transaction)
+    db.commit()
+    db.refresh(new_transaction)
 
-    if result:
-        # Transaction found, return success with details
-        transaction_details = {
-            "transactionDate": result[3],
-            "transactionTime": result[4],
-            "details": result[5] if result[5] else "No details available",
-        }
-        return {"status": "success", "details": transaction_details}
+    # Retrieve the confirmation code
+    confirmation_code = await get_confirmation_code(new_transaction.id)
+    
+    return {"status": "success", "data": {"confirmation_code": confirmation_code}}
 
-    else:
-        # Transaction not found, run the Selenium bot
-        bot_result = update_database(request.customerCard, request.destinationCard)
+@app.post("/process_transactions/")
+async def process_transactions(transactions: list[Transaction] = Query(...)):
+    tasks = [process_transaction(transaction) for transaction in transactions]
+    results = await asyncio.gather(*tasks)
+    return results
 
-        if bot_result["status"] == "success":
-            # Bot ran successfully, check the database again and return success with log message
-            cursor.execute(
-                "SELECT * FROM transactions WHERE customerCard = ? AND destinationCard = ? AND transactionID = ?",
-                (request.customerCard, request.destinationCard, request.transactionID),
-            )
-            result_after_bot = cursor.fetchone()
+if __name__ == "__main__":
+    import uvicorn
 
-            if result_after_bot:
-                transaction_details_after_bot = {
-                    "transactionDate": result_after_bot[3],
-                    "transactionTime": result_after_bot[4],
-                    "details": result_after_bot[5] if result_after_bot[5] else "No details available",
-                }
-                return {"status": "success", "log_message": bot_result["log_message"], "details": transaction_details_after_bot}
-            else:
-                raise HTTPException(status_code=500, detail="Bot ran successfully, but transaction still not found in the database")
-
-        else:
-            # Bot failed to update the database, return failure with log message
-            raise HTTPException(status_code=500, detail=bot_result["log_message"])
-
-# Lifespan event handler to close the SQLite connection when the FastAPI app shuts down
-@app.on_event("shutdown")
-def shutdown_event():
-    conn.close()
+    uvicorn.run(app, host="127.0.0.1", port=8000)

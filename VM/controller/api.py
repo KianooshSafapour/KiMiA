@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from fetcher import update_database  # Import your Selenium bot function
+from ftchr import update_database  # Import your Selenium bot function
 import sqlite3
 
 app = FastAPI()
