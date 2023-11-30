@@ -65,3 +65,12 @@ async def check_transaction(transaction_data: TransactionRequest = Body(...)):
     except Exception as e:
         logger.exception(f"An error occurred: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/status")
+async def check_status():
+    return {"status": "successful"}
+
+
+@app.get("/bad_check")
+async def back_check():
+    return 404

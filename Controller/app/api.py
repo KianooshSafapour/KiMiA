@@ -1,7 +1,15 @@
+import main
+import requests
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-import requests
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+DATABASE_URL = "sqlite+aiosqlite:///./database.sqlite3"
+engine = create_async_engine(DATABASE_URL, echo=True)
+AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 app = FastAPI()
 
@@ -16,10 +24,11 @@ class TransactionRequest(BaseModel):
 
 @app.get("/get_card")
 async def get_card():
-    
-    # Assuming get_worker is a function in manage.py
-    result = get_worker()
-    return {"status": result[0], "data": result[1]}
+
+    async with AsyncSessionLocal() as session:
+        result = await main.select_worker(session)
+
+    return result
 
 @app.post("/check_transaction")
 async def check_transaction(request_data: TransactionRequest):
@@ -51,3 +60,9 @@ async def check_transaction(request_data: TransactionRequest):
         return response.json()
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Error contacting external API: {str(e)}")
+
+@app.get("/check")
+async def check_status(card_number: str):
+    async with AsyncSessionLocal() as session:
+        result = await main.check_status(card_number, session)
+        return result

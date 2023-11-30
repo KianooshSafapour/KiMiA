@@ -1,158 +1,64 @@
-# from sqlalchemy import create_engine, text
-# from sqlalchemy.orm import sessionmaker
-# from sqlalchemy.exc import SQLAlchemyError
-# from random import choice
+from sqlalchemy import create_engine, Column, Integer, String, MetaData, Table
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# def get_random_ready_account_card(connection_string):
-#     engine = create_engine(connection_string)
+# Replace these values with your actual database credentials
+db_url = 'mysql+mysqlconnector://root:!QAZ2wsx#E@localhost:3306/srvr'
 
-#     Session = sessionmaker(bind=engine)
+# SQLAlchemy engine and session setup
+engine = create_engine(db_url)
+Base = declarative_base()
+metadata = MetaData(bind=engine)
+Session = sessionmaker(bind=engine)
+session = Session()
 
-#     try:
-#         with Session() as session:
-#             # Select a random record from the nodes table with status "ready"
-#             result = session.execute(text("SELECT account_number FROM nodes WHERE status = 'ready' ORDER BY RAND() LIMIT 1;"))
-#             node_result = result.fetchone()
+# Define the Node model
+class Node(Base):
+    __tablename__ = 'nodes'
 
-#             if node_result:
-#                 account_number = node_result[0]
+    id = Column(Integer, primary_key=True)
+    name = Column(String(16))
+    ip = Column(String(15))
+    username = Column(String(16))
+    password = Column(String(64))
+    secret = Column(String(256))
+    config = Column(Integer)
+    status = Column(String(20))
 
-#                 # Check if the account exists in the accounts table
-#                 result = session.execute(text("SELECT card_number FROM accounts WHERE account_number = :account_number;"), {'account_number': account_number})
-#                 account_result = result.fetchone()
+# Create the nodes table if it does not exist
+Base.metadata.create_all()
 
-#                 if account_result:
-#                     card_number = account_result[0]
-#                     return card_number
+# Sample data to be inserted into the nodes table
+sample_data = [
+    Node(id=3, name='Node3', ip='192.168.1.3', username='user3', password='password', secret='secret', config=0, status="active"),
+    Node(id=4, name='Node4', ip='192.168.1.4', username='user4', password='pass', secret='secret', config=0, status="offline"),
+    Node(id=5, name='Node5', ip='192.168.1.5', username='user5', password='pass', secret='secret', config=0, status="active"),
+    Node(id=6, name='Node6', ip='192.168.1.6', username='user6', password='pass', secret='secret', config=0, status="online"),
+    Node(id=7, name='Node7', ip='192.168.1.7', username='user7', password='pass', secret='secret', config=0, status="active"),
+    Node(id=8, name='Node8', ip='192.168.1.8', username='user8', password='pass', secret='secret', config=0, status="ready"),
+    Node(id=9, name='Node9', ip='192.168.1.9', username='user9', password='pass', secret='secret', config=0, status="active"),
+    Node(id=10, name='Node10', ip='192.168.1.10', username='user10', password='pass', secret='secret', config=0, status="ready"),
+    Node(id=11, name='Node11', ip='192.168.1.11', username='user11', password='pass', secret='secret', config=0, status="active"),
+    Node(id=12, name='Node12', ip='192.168.1.12', username='user12', password='pass', secret='secret', config=0, status="offline"),
+    Node(id=13, name='Node13', ip='192.168.1.13', username='user13', password='pass', secret='secret', config=0, status="offline"),
+    Node(id=14, name='Node14', ip='192.168.1.14', username='user14', password='pass', secret='secret', config=0, status="online"),
+    Node(id=15, name='Node15', ip='192.168.1.15', username='user15', password='pass', secret='secret', config=0, status="active"),
+    Node(id=16, name='Node16', ip='192.168.1.16', username='user16', password='pass', secret='secret', config=0, status="ready"),
+    Node(id=17, name='Node17', ip='192.168.1.17', username='user17', password='pass', secret='secret', config=0, status="online"),
+    Node(id=18, name='Node18', ip='192.168.1.18', username='user18', password='pass', secret='secret', config=0, status="active"),
+    Node(id=19, name='Node19', ip='192.168.1.19', username='user19', password='pass', secret='secret', config=0, status="ready"),
+    Node(id=20, name='Node20', ip='192.168.1.20', username='user20', password='password', secret='secret', config=0, status="active")
+    # Add more rows as needed
+]
 
-#     except SQLAlchemyError as e:
-#         print(f"SQLAlchemy Error: {e}")
-#     finally:
-#         engine.dispose()
+# Insert sample data into the nodes table
+session.bulk_save_objects(sample_data)
+session.commit()
 
-#     return None
+# Query and print the contents of the nodes table
+nodes = session.query(Node).all()
+for node in nodes:
+    print(f"ID: {node.id}, Name: {node.name}, IP: {node.ip}, Username: {node.username}, Status: {node.status}")
 
-# # Example usage
-# connection_string = "mysql+pymysql://username:password@localhost:3306/srvr"
-# result = get_random_ready_account_card(connection_string)
-
-# if result:
-#     print(f"Random ready account card number: {result}")
-# else:
-#     print("No ready account found.")
-
-
-import random
-import requests
-import mariadb
-from mariadb import connect, Error
-
-# Function to check the status of a card number
-def check_status(card_number):
-    # Connect to the MariaDB database
-    try:
-        conn = connect(
-            user="your_username",
-            password="your_password",
-            host="your_host",
-            database="your_database"
-        )
-        cursor = conn.cursor()
-
-        # Query to find the account record for the given card_number
-        cursor.execute(f"SELECT * FROM accounts WHERE card_number = {card_number}")
-        account_record = cursor.fetchone()
-
-        if account_record:
-            # Extract the host value from the account record
-            host_id = account_record[2]
-
-            # Query to find the node record using the host_id
-            cursor.execute(f"SELECT * FROM nodes WHERE id = {host_id}")
-            node_record = cursor.fetchone()
-
-            if node_record:
-                # Extract the IP address from the node record
-                node_ip = node_record[1]
-
-                # Send a request to the check_status endpoint of the node
-                response = requests.get(f"http://{node_ip}/check_status")
-
-                if response.status_code == 200 and response.json()["status"] == "ready":
-                    return "active"
-                else:
-                    # If the response is not ready, update the node status to offline
-                    update_node_status(node_ip, "offline")
-                    return "inactive"
-            else:
-                return "inactive"
-        else:
-            return "inactive"
-
-    except Error as e:
-        print(f"Error: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-# Function to select a random worker with "ready" status
-def select_worker():
-    try:
-        conn = connect(
-            user="your_username",
-            password="your_password",
-            host="your_host",
-            database="your_database"
-        )
-        cursor = conn.cursor()
-
-        # Query to find nodes with "ready" status
-        cursor.execute("SELECT * FROM nodes WHERE status = 'ready'")
-        ready_nodes = cursor.fetchall()
-
-        if ready_nodes:
-            # Choose a random node
-            selected_node = random.choice(ready_nodes)
-
-            # Extract the IP address from the selected node
-            node_ip = selected_node[1]
-
-            # Use check_status function to find and return the status
-            return check_status(node_ip)
-        else:
-            return "No ready nodes available"
-
-    except Error as e:
-        print(f"Error: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-# Function to update the status of a node
-def update_node_status(node_ip, status):
-    try:
-        conn = connect(
-            user="your_username",
-            password="your_password",
-            host="your_host",
-            database="your_database"
-        )
-        cursor = conn.cursor()
-
-        # Update the status of the node
-        cursor.execute(f"UPDATE nodes SET status = '{status}' WHERE ip = '{node_ip}'")
-        conn.commit()
-
-    except Error as e:
-        print(f"Error: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-# Example usage
-card_number = "1234567890123456"
-status = check_status(card_number)
-print(f"Status for card number {card_number}: {status}")
-
-selected_worker_status = select_worker()
-print(f"Selected worker status: {selected_worker_status}")
+# Close the session
+session.close()

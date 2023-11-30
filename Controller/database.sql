@@ -1,35 +1,64 @@
--- --------------------------------------------------------
--- Host:                         127.0.0.1
--- Server version:               11.2.2-MariaDB - mariadb.org binary distribution
--- Server OS:                    Win64
--- HeidiSQL Version:             12.3.0.6589
--- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `accounts` (
+  `id` int(10) NOT NULL DEFAULT 0,
+  `name` varchar(16) NOT NULL,
+  `number` varchar(20) NOT NULL,
+  `bank` varchar(20) NOT NULL DEFAULT '0',
+  `card` varchar(16) NOT NULL,
+  `username` varchar(16) NOT NULL,
+  `password` varchar(64) NOT NULL,
+  `host` int(10) NOT NULL DEFAULT 0,
+  `status` varchar(50) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+);
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET NAMES utf8 */;
-/*!50503 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+CREATE TABLE IF NOT EXISTS `banks` (
+  `id` int(10) NOT NULL DEFAULT 0,
+  `name` varchar(16) NOT NULL,
+  `config` text NOT NULL,
+  PRIMARY KEY (`id`)
+);
 
--- Data exporting was unselected.
+CREATE TABLE IF NOT EXISTS `configs` (
+  `id` int(10) NOT NULL DEFAULT 0,
+  `name` varchar(16) NOT NULL,
+  `config` text NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`)
+);
 
--- Data exporting was unselected.
+CREATE TABLE IF NOT EXISTS `logs` (
+  `id` int(10) NOT NULL,
+  `time` varchar(20) NOT NULL,
+  `level` varchar(8) NOT NULL,
+  `message` text NOT NULL,
+  PRIMARY KEY (`id`)
+);
 
--- Data exporting was unselected.
+CREATE TABLE IF NOT EXISTS `nodes` (
+  `id` tinyint(3) NOT NULL DEFAULT 0,
+  `name` varchar(16) NOT NULL DEFAULT '0',
+  `ip` varchar(15) NOT NULL DEFAULT '0',
+  `username` varchar(16) NOT NULL DEFAULT '0',
+  `password` varchar(64) NOT NULL DEFAULT '0',
+  `secret` varchar(256) NOT NULL DEFAULT '0',
+  `config` tinyint(3) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+);
 
--- Data exporting was unselected.
+CREATE TABLE IF NOT EXISTS `settings` (
+  `id` int(10) NOT NULL DEFAULT 0,
+  `name` varchar(16) NOT NULL,
+  `value` text NOT NULL
+);
 
--- Data exporting was unselected.
-
--- Data exporting was unselected.
-
--- Data exporting was unselected.
-
-/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
-/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
-/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
+CREATE TABLE IF NOT EXISTS `transactions` (
+  `id` int(10) NOT NULL,
+  `ccn` varchar(16) NOT NULL,
+  `acn` varchar(16) NOT NULL,
+  `tcn` varchar(20) NOT NULL,
+  `date` varchar(8) NOT NULL,
+  `time` varchar(4) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+);
