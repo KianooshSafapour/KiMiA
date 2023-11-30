@@ -7,8 +7,8 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 bank_database_path = os.path.join(script_directory, 'bank_database.sqlite3')
 database_path=os.path.join(script_directory, 'database.sqlite3')
 
-async def login(desCard:str):
-    bank_name = bank_finder(bank_database_path,desCard)
+async def login(card_number:str):
+    bank_name = bank_finder(bank_database_path,card_number)
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
@@ -27,10 +27,10 @@ async def login(desCard:str):
         except ImportError:
             print(f"No bot module found for account name: {bank_name}")
     else:
-        print(f"No record found for the card number {desCard}")
+        print(f"No record found for the card number {card_number}")
 
-async def refresh(desCard:str):
-    bank_name = bank_finder(bank_database_path,desCard)
+async def refresh(card_number:str):
+    bank_name = bank_finder(bank_database_path,card_number)
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
@@ -49,10 +49,10 @@ async def refresh(desCard:str):
         except ImportError:
             print(f"No bot module found for account name: {bank_name}")
     else:
-        print(f"No record found for the card number {desCard}")
+        print(f"No record found for the card number {card_number}")
 
-def check_login(desCard:str):
-    bank_name = bank_finder(bank_database_path,desCard)
+def check_login(card_number:str):
+    bank_name = bank_finder(bank_database_path,card_number)
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
@@ -71,11 +71,11 @@ def check_login(desCard:str):
         except ImportError:
             print(f"No bot module found for account name: {bank_name}")
     else:
-        print(f"No record found for the card number {desCard}")
+        print(f"No record found for the card number {card_number}")
 
-async def update_database(desCard:str,semaphore: asyncio.Semaphore, startDate: str, endDate: str, startTime: str, endTime: str):
+async def update_database(semaphore: asyncio.Semaphore, card_number:str, startDate: str, endDate: str, startTime: str, endTime: str):
     
-    bank_name = bank_finder(database_path,desCard)
+    bank_name = bank_finder(database_path,card_number)
 
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
@@ -97,7 +97,7 @@ async def update_database(desCard:str,semaphore: asyncio.Semaphore, startDate: s
         except ImportError:
             print(f"No bot module found for account name: {bank_name}")
     else:
-        print(f"No record found for the card number {desCard}")
+        print(f"No record found for the card number {card_number}")
 
 def bank_finder(database_path, card_number):
 

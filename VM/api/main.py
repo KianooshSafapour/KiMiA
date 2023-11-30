@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, MetaData, Table
 import logging
 from logging.handlers import RotatingFileHandler
+import ..controller.controller as ctrl
 
 # Configure logging
 logging.basicConfig(
@@ -46,6 +47,7 @@ class TransactionRequest(BaseModel):
 @app.post("/check-transaction")
 async def check_transaction(transaction_data: TransactionRequest = Body(...)):
     try:
+        result = await ctrl.check_transaction()
         # Your transaction-checking logic here
         with engine.connect() as connection:
             query = transactions.select().where(
