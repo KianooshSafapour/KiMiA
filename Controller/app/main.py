@@ -58,12 +58,11 @@ async def check_status(card_number, session):
                 async with aiohttp.ClientSession() as client_session:
                     async with client_session.get(f"http://{node_ip}/status") as response:
                         if response.status == 200:
-                            return "ready"
-                            # response_json = await response.json()
-                            # if response_json["status"] == "ready":
-                            #     return "active"
-                            # else:
-                            #     return "inactive"
+                            response_json = await response.json()
+                            if response_json["status"] == "ready":
+                                return response_json
+                            else:
+                                return "crap inactive"
                         else:
                             await update_node_status(node_id, "offline", session)
                             return "inactive"

@@ -68,7 +68,7 @@ async def check_transaction(transaction_data: TransactionRequest = Body(...)):
 
 @app.get("/status")
 async def check_status():
-    return {"status": "successful"}
+    return {"status": "active"}
 
 
 @app.get("/bad_check")
