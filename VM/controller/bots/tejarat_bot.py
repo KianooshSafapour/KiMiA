@@ -17,10 +17,11 @@ import asyncio
 from .tejarat_modules.csv_handler import Transaction, TransactionDB
 from bots.tejarat_modules.utils import set_date ,set_time
 
+chrome_driver_path = './chromedriver.exe'
 chrome_options = Options()
 chrome_options.add_experimental_option("detach", True)
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+driver = webdriver.Chrome(executable_path=chrome_driver_path)
 
 def tejarat_login():
     driver.get("https://ib.tejaratbank.ir/web/ns/login?execution=e1s1")
