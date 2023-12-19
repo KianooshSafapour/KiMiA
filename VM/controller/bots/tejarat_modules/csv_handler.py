@@ -7,7 +7,7 @@ import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-
+import aiosqlite
 
 class TransactionModel():
    def __init__(self, from_card, to_card, payment_id, pay_date, pay_time):
@@ -17,7 +17,9 @@ class TransactionModel():
         self.pay_date = pay_date
         self.pay_time = pay_time
 
+'''
 class TransactionDB:
+    
     def __init__(self,database_path):
         self.connection = sqlite3.connect(database_path)
         self.cursor = self.connection.cursor()
@@ -25,7 +27,7 @@ class TransactionDB:
 
     def create_table(self):
         # Create a table if it doesn't exist
-        self.cursor.execute('''
+        self.cursor.execute(
             CREATE TABLE IF NOT EXISTS transactions (
                 "id" INTEGER NOT NULL,
 	            "ccn" VARCHAR(16) NOT NULL DEFAULT '',
@@ -35,12 +37,29 @@ class TransactionDB:
 	            "time" VARCHAR(10) NOT NULL DEFAULT '',
 	            PRIMARY KEY ("id")
             )
-        ''')
+        )
         self.connection.commit()
 
     def __del__(self):
         # Close the database connection when the object is deleted
         self.connection.close()
+'''
+class TransactionDB:
+    
+    def __init__(self, database_path):
+        self.connection = None
+        self.cursor = None
+        self.database_path = database_path
+
+    async def __aenter__(self):
+        self.connection = await aiosqlite.connect(self.database_path)
+        self.cursor = await self.connection.cursor()
+        return self.cursor
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.connection.commit()
+        await self.connection.close()
+
 
 class Transaction():
     
@@ -53,27 +72,30 @@ class Transaction():
 
     def description_handler(self,des):
         
-        fromCard_patern = r"انتقال کارت به کارت از درگاه اينترنتي تجارت از کارت:(\d+)"
-        toCard_patern = r"تجارت به کارت:(\d+)"
+        fromCard_patern = r"از کارت:(\d+)"
+        toCard_patern = r"به کارت:(\d+)"
         paymentID_patern = r"شماره‌پي‌گيري:(\d+)"
     # Print the unique values
         
             
         # Find matches using regular expressions
-        search_fromCard= re.search(fromCard_patern, des)
-        search_toCard= re.search(toCard_patern, des)
-        search_paymentID = re.search(paymentID_patern, des)
+        if "انتقال کارت به کارت" in des:
+            search_fromCard= re.search(fromCard_patern, des)
+            search_toCard= re.search(toCard_patern, des)
+            search_paymentID = re.search(paymentID_patern, des)
 
-    # Extract numbers from matches
-        self.fromCard = str(int(search_fromCard.group(1))) if search_fromCard else None
-        if self.fromCard==None: return False
-        self.toCard  = str(int(search_toCard.group(1))) if search_toCard else None
-        self.paymentID  = str(int(search_paymentID.group(1))) if search_paymentID else None
-        return True
+        # Extract numbers from matches
+            self.fromCard = str(int(search_fromCard.group(1))) if search_fromCard else None
+            if self.fromCard==None: return False
+            self.toCard  = str(int(search_toCard.group(1))) if search_toCard else None
+            self.paymentID  = str(int(search_paymentID.group(1))) if search_paymentID else None
+            return True
+        else:
+            return False
 
 
 
-    async def csv_handner(self,driver):
+    async def csv_handler(self,driver):
         WebDriverWait(driver, 30).until(
         EC.invisibility_of_element_located((By.ID, "progressAnimator_start"))
     )
@@ -142,6 +164,9 @@ class Transaction():
 
                 if status :
                     transaction_list.append(TransactionModel(from_card=self.fromCard,to_card=self.toCard,payment_id=self.paymentID,pay_date=self.payDate,pay_time=self.payTime))
+                    
+            print(f"###############{transaction_list[0].from_card}::::{transaction_list[0].to_card}")
+            print(f"###############transaction_list len:::::{len(transaction_list)}")
             return transaction_list
                     #db = TransactionDB(database_path)
                     #db.save_to_db(ccn=self.fromCard,acn=self.toCard,tcn=self.paymentID,time=self.payTime,date=self.payDate,paymentID=self.paymentID)

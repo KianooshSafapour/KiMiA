@@ -2,17 +2,56 @@ import asyncio
 import importlib
 import os
 import sqlite3
-from bots.tejarat_bot import tejarat_update_database 
+from utils.bank_finder import bank_finder
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
 bank_database_path = os.path.join(script_directory, 'bank_database.sqlite3')
 database_path=os.path.join(script_directory, 'database.sqlite3')
 
-async def login(driver):
-    #(desCard:str):
-    desCard="5859831149059379"
-    bank_name = bank_finder(bank_database_path,desCard)
+async def login(driver,card_number):
+
+    connection = sqlite3.connect(bank_database_path)  
+    cursor = connection.cursor()
+
+    try:
+        # Step 1: Get account_number from accounts table
+        cursor.execute("SELECT * FROM accounts WHERE card_number = ?", (card_number,))
+        account_row = cursor.fetchone()
+
+        if account_row:
+            account_number = account_row[1]
+            account_username =account_row[3]
+            account_pass = account_row[4]
+
+            # Step 2: Get bank_name from bank table using account_number
+            cursor.execute("SELECT * FROM banks WHERE id = ?", (account_number,))
+            bank_row = cursor.fetchone()
+
+            if bank_row:
+                bank_name = bank_row[1]
+                bank_url = bank_row[2]
+                bank_config = bank_row[3]
+
+                
+            else:
+                print(f"No bank record found for account_number {account_number}")
+                return {'status':'failure','message':'No bank record found'}
+                
+        else:
+            print(f"No account record found for card_number {card_number}")
+            return {'status':'failure','message':'No account record found'}
+            
+
+    except sqlite3.Error as e:
+        print("SQLite error:", e)
+        return {'status':'failure','message':'database error'}
+        
+
+    finally:
+        # Close the database connection
+        connection.close()    
+    
     if bank_name:
-        print("####################################bank_name ok")
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
             # Import the module dynamically
@@ -24,20 +63,22 @@ async def login(driver):
        
             if login_function:
                  print("####################################login_function ok")
-                 reuslt =await login_function(driver)
+                 reuslt =await login_function(driver,bank_url,account_username,account_pass)
                  return reuslt
             else:
                 print(f"No login function found for account name: {bank_name}")
+                return {"status": "failure", "message": "No bank found for this card number"}
+
 
         except ImportError:
             print(f"No bot module found for account name: {bank_name}")
     else:
-        return {"status": "failed", "message": "No record found for the card number"}
+        return {"status": "failure", "message": "No record found for the card number"}
         print(f"No record found for the card number {desCard}")
 
-async def refresh(driver):#(desCard:str):
-    desCard="5859831149059379"
-    bank_name = bank_finder(bank_database_path,desCard)
+async def refresh(driver,desCard):
+   
+    bank_name = bank_finder(desCard)
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
@@ -59,9 +100,9 @@ async def refresh(driver):#(desCard:str):
     else:
         print(f"No record found for the card number {desCard}")
 
-def check_login(driver):
-    desCard = "5859831149059379"
-    bank_name = bank_finder(bank_database_path,desCard)
+async def check_login(driver,card_number):
+    
+    bank_name = bank_finder(card_number)
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
         try:
@@ -73,18 +114,22 @@ def check_login(driver):
             check_login_function = getattr(bot_module, f"{bank_name.lower()}_check_login", None)
        
             if check_login_function:
-                  check_login_function(driver)
+                result= await check_login_function(driver)
+                return result
             else:
-                return f"No check_login function found for account name: {bank_name}"
+                print( f"No check_login function found for account name: {bank_name}")
+                return {'status':'failure','message':'No check_login function found for account name'}
 
         except ImportError:
-            return f"No bot module found for account name: {bank_name}"
+            print(f"No bot module found for account name: {bank_name}")
+            return {'status':'failure','message':'No bot module found for account name'}
     else:
-        return f"No record found for the card number {desCard}"
+        print(f"No record found for the card number {card_number}")
+        return {'status':'failure','message':'No record found for the card number'}
 
-async def update_database(driver, semaphore: asyncio.Semaphore, desCard:str, from_date: str, from_time: str, to_date: str, to_time: str):
-    
-    bank_name = bank_finder(database_path,desCard)
+async def update_database(driver, desCard:str, from_date: str, from_time: str, to_date: str, to_time: str):
+    print("###############update_database####################")
+    bank_name = bank_finder(desCard)
 
     if bank_name:
         bot_module_name = f"{bank_name.lower()}_bot"
@@ -94,32 +139,17 @@ async def update_database(driver, semaphore: asyncio.Semaphore, desCard:str, fro
             # Get the update_database functions dynamically
             update_function = getattr(bot_module, f"{bank_name.lower()}_update_database", None)
             if update_function:
-                result = await update_function(driver, semaphore, from_date, from_time, to_date, to_time)
+                print(f"########################################update_functionupdate_functionupdate_function##{from_date}##{to_date}##{to_time}")
+                result = await update_function(driver, from_date, from_time, to_date, to_time)
                 return result
             else:
-                return f"No update function found for account name: {bank_name}"
+                return {"status":"failure","message":f"No update function found for account name: {bank_name}"}
         except ImportError:
-            return f"No bot module found for account name: {bank_name}"
+            return {"status":"failure","message":f"No bot module found for account name: {bank_name}"}
+
     else:
-        return f"No record found for the card number {desCard}"
+        return {"status":"failure","message":f"No record found for the card number {desCard}"}
+ 
 
-def bank_finder(database_path, card_number):
-
-    # Connect to the SQLite database
-    conn = sqlite3.connect(database_path)
-    cursor = conn.cursor()
-
-    # Execute a query to find the account_name based on the card_number
-    cursor.execute('SELECT account_number FROM accounts WHERE card_number = ?', (card_number,))
-
-    # Fetch the result
-    result = cursor.fetchone()
-
-    # Close the cursor and connection
-    cursor.close()
-    conn.close()
-
-    # Return the account_name if found, otherwise return None
-    return result[0] if result else None
 
 
